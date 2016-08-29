@@ -53,7 +53,7 @@ var router = express.Router({
 // define routes here
 router.get("/ping", function(request, response)
 {
-	return response.end();
+	return response.end("Shit works!");
 })
 // end route definitions
 
