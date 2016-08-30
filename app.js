@@ -2,6 +2,9 @@
 
 var bunyan = require("bunyan");
 var express = require("express");
+var os = require("os");
+
+var HTTP_PORT = 80;
 
 var logger = bunyan.createLogger({
 	name: "express",
@@ -10,6 +13,22 @@ var logger = bunyan.createLogger({
 	},
 	server: "GameJamServer",
 });
+
+function getLocalIP() {
+	var ifaces = os.networkInterfaces();
+	var result = [];
+	Object.keys(ifaces).forEach(function(ifName) {
+
+		ifaces[ifName].forEach(function(iface) {
+			if ('IPv4' !== iface.family || iface.internal !== false) {
+				//	skip over internal (i.e. 127.0.0.1) and non-ipv4 addresses
+				return;
+			}
+			result.push(iface.address);
+		})
+	})
+	return result;
+}
 
 var app = express();
 
@@ -58,7 +77,7 @@ router.get("/ping", function(request, response)
 // end route definitions
 
 app.use("/ws", router);
-app.use("/static", express.static(__dirname + "/public"));
+app.use(express.static(__dirname + "/public"));
 
 app.use(function(err, request, response, next) {
 	logger.error({
@@ -69,6 +88,7 @@ app.use(function(err, request, response, next) {
 	return response.status(500).end();
 });
 
-app.listen(3000, function() {
-	logger.info({ port: 3000 }, "Server listening...");
+app.listen(HTTP_PORT, function() {
+	var ipAdresses = getLocalIP();
+	logger.info({ port: HTTP_PORT, ipAddresses: ipAdresses }, "Server listening...");
 });
