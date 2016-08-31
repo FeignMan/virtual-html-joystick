@@ -23,7 +23,6 @@ leftPointerStartPos = new Vector2(0, 0),
 leftVector = new Vector2(0, 0);
 
 var touches; // collections of pointers
-var ship;
 
 document.addEventListener("DOMContentLoaded", init);
 
@@ -35,8 +34,6 @@ function init() {
     setupSocket();
     setupCanvas();
     touches = new Collection();
-    ship = new ShipMoving(halfWidth, halfHeight);
-    document.body.appendChild(ship.canvas);
     canvas.addEventListener('pointerdown', onPointerDown, false);
     canvas.addEventListener('pointermove', onPointerMove, false);
     canvas.addEventListener('pointerup', onPointerUp, false);
@@ -58,19 +55,6 @@ function resetCanvas(e) {
 
 function draw() {
     c.clearRect(0, 0, canvas.width, canvas.height);
-
-    ship.targetVel.copyFrom(leftVector);
-    ship.targetVel.multiplyEq(0.15);
-    ship.update();
-
-    with (ship.pos) {
-        if (x < 0) x = canvas.width;
-        else if (x > canvas.width) x = 0;
-        if (y < 0) y = canvas.height;
-        else if (y > canvas.height) y = 0;
-    }
-
-    ship.draw();
 
     var buttonState = false;
     touches.forEach(function (touch) {
@@ -206,8 +190,8 @@ function setupSocket() {
 function transmitJoystickData(buttonState) {
     if (connected && localData)
         socket.emit("joystickData", {
-            xAxis: leftVector.x,
-            yAxis: leftVector.y,
+            xAxis: Math.max(Math.min(80, leftVector.x), -80) / 80,
+            yAxis: Math.max(Math.min(80, leftVector.y), -80) / 80,
             jump: buttonState,
             playerId: localData.playerId
         });

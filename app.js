@@ -103,7 +103,7 @@ server.listen(HTTP_PORT, function() {
 
 var io = socketioLib.listen(server);
 var connections = {};
-var playerId = 1;
+var playerId = 0;
 
 function broadcastEvent(event) {
 	if (!gameConnected) return;
