@@ -142,7 +142,7 @@ io.sockets.on("connection", function(socket) {
 	});
 });
 
-function handleHandshake(messageObj) {
+function handleHandshake(ws, messageObj) {
 	if (messageObj.data === "JingleBalls") {
 		logger.info("Handshake accepted from game client");
 		gameConnected = true;
@@ -154,7 +154,7 @@ function handleHandshake(messageObj) {
 			spawnEvent.messageType = "SpawnPlayer";
 			return spawnEvent;
 		});
-		broadcastEvent(response);
+		ws.send(JSON.stringify(response));
 	}
 	else {
 		logger.error("Incorrect handshake message received");
@@ -170,7 +170,7 @@ gameSocketServer.on("connection", function(ws)
 			var message = JSON.parse(data);
 			switch(message.messageType) {
 				case "handshake":
-					handleHandshake(message);
+					handleHandshake(ws, message);
 					break;
 				default:
 					logger.error({ message: message }, "Unknown message type received");
