@@ -9,7 +9,10 @@ window.requestAnimFrame = (function () {
     };
 })();
 
-var canvas,
+var socket,
+connected,
+localData,
+canvas,
 c, // c is the canvas' context 2D
 container,
 halfWidth,
@@ -28,6 +31,8 @@ window.onorientationchange = resetCanvas;
 window.onresize = resetCanvas;
 
 function init() {
+    connected = false;
+    setupSocket();
     setupCanvas();
     touches = new Collection();
     ship = new ShipMoving(halfWidth, halfHeight);
@@ -67,6 +72,7 @@ function draw() {
 
     ship.draw();
 
+    var buttonState = false;
     touches.forEach(function (touch) {
         if (touch.identifier == leftPointerID) {
             c.beginPath();
@@ -85,6 +91,7 @@ function draw() {
             c.stroke();
 
         } else {
+            buttonState = true;
 
             c.beginPath();
             c.fillStyle = "white";
@@ -97,6 +104,23 @@ function draw() {
             c.stroke();
         }
     });
+
+    if (connected && localData) {
+        c.fillStyle = "white";
+        c.fillText("Player ID: " + localData.playerId, 10, 10);
+        c.fillText("Team ID: " + localData.teamId, 10, 20);
+        c.fillText("Connection Status: true", 10, 30);
+    }
+    else {
+        c.fillStyle = "white";
+        c.fillText("Connection Status: false", 10, 30);
+    }
+    c.fillStyle = "white";
+    c.fillText("Touch on the left to move", halfWidth * 0.5 - 50, halfHeight);
+    c.fillStyle = "white";
+    c.fillText("Touch on the right to jump", halfWidth * 1.5 - 50, halfHeight);
+
+    transmitJoystickData(buttonState);
 
     requestAnimFrame(draw);
 }
@@ -157,4 +181,34 @@ function setupCanvas() {
     resetCanvas();
     c.strokeStyle = "#ffffff";
     c.lineWidth = 2;
+}
+
+function setupSocket() {
+    socket = io();
+
+    socket.on("connect", function() {
+        connected = true;
+
+        socket.on("registrationSuccess", function(data) {
+            console.log("Registration Successfull!:", data);
+            localData = data;
+        });
+
+    });
+
+    socket.on("disconnect", function() {
+        connected = false;
+        localData = null;
+        console.log("Disconnected!");
+    });
+}
+
+function transmitJoystickData(buttonState) {
+    if (connected && localData)
+        socket.emit("joystickData", {
+            xAxis: leftVector.x,
+            yAxis: leftVector.y,
+            jump: buttonState,
+            playerId: localData.playerId
+        });
 }

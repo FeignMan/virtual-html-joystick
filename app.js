@@ -2,7 +2,13 @@
 
 var bunyan = require("bunyan");
 var express = require("express");
+var http = require("http");
 var os = require("os");
+var socketioLib = require("socket.io");
+var WebSocketServer = require("ws").Server;
+
+var gameSocketServer = new WebSocketServer({port: 3000});
+var gameConnected = false;
 
 var HTTP_PORT = 80;
 
@@ -88,7 +94,96 @@ app.use(function(err, request, response, next) {
 	return response.status(500).end();
 });
 
-app.listen(HTTP_PORT, function() {
+//	---------------------***** Start up *****---------------------	//
+var server = http.createServer(app);
+server.listen(HTTP_PORT, function() {
 	var ipAdresses = getLocalIP();
 	logger.info({ port: HTTP_PORT, ipAddresses: ipAdresses }, "Server listening...");
+});
+
+var io = socketioLib.listen(server);
+var connections = {};
+var playerId = 1;
+
+function broadcastEvent(event) {
+	if (!gameConnected) return;
+	gameSocketServer.clients.forEach(function(client) {
+		client.send(JSON.stringify(event));
+	})
+}
+
+io.sockets.on("connection", function(socket) {
+	var remoteAddress = socket.handshake.address;/*socket.client.conn.remoteAddress;*/
+	logger.info("Socket connection from:", remoteAddress);
+
+	if (!connections.hasOwnProperty(remoteAddress)) {
+		connections[remoteAddress] = { playerId: playerId, teamId: playerId % 2 };
+		logger.info({ ipAddr: remoteAddress, playerId: connections[remoteAddress].playerId }, "New Player Joined!");
+		var spawnEvent = JSON.parse(JSON.stringify(connections[remoteAddress]));
+		spawnEvent.messageType = "SpawnPlayer";
+		broadcastEvent(spawnEvent);
+		playerId++;
+	}
+	else {
+		logger.info({ ipAddr: remoteAddress, playerId: connections[remoteAddress].playerId }, "Existing Player Rejoined!");
+	}
+	
+	socket.emit("registrationSuccess", connections[remoteAddress]);
+
+	socket.on("disconnect", function() {
+		logger.info({ ipAddr: remoteAddress, playerId: connections[remoteAddress].playerId }, "Player lost!");
+	});
+
+	socket.on("joystickData", function(data) {
+		// console.log("Joystick info:", data);
+		var inputEvent = data;
+		inputEvent.messageType = "PlayerInput";
+		broadcastEvent(inputEvent);
+	});
+});
+
+function handleHandshake(messageObj) {
+	if (messageObj.data === "JingleBalls") {
+		logger.info("Handshake accepted from game client");
+		gameConnected = true;
+
+		//	send handshake response, including all connected joysticks
+		var response = { messageType: "HandshakeResponse" };
+		response.existingConnections = Object.keys(connections).map(function(ip) { 
+			var spawnEvent = JSON.parse(JSON.stringify(connections[ip]));
+			spawnEvent.messageType = "SpawnPlayer";
+			return spawnEvent;
+		});
+		broadcastEvent(response);
+	}
+	else {
+		logger.error("Incorrect handshake message received");
+		//	close ws connection
+	}
+}
+
+gameSocketServer.on("connection", function(ws)
+{
+	ws.on("message", function(data)
+	{	
+		try {
+			var message = JSON.parse(data);
+			switch(message.messageType) {
+				case "handshake":
+					handleHandshake(message);
+					break;
+				default:
+					logger.error({ message: message }, "Unknown message type received");
+					break;
+			}
+		}
+		catch (err) {
+			logger.error({rawMessage: data}, "GameClient tried to connect with a bad handshake message");
+			//	close ws connection
+		}
+	});
+
+	ws.on("close", function() {
+		logger.info("Connection closed");
+	})
 });
